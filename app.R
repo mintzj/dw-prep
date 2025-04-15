@@ -5,7 +5,7 @@ library(shiny)
 # library(stringr)
 # library(dplyr)
 library(readr)
-library(DT)
+# library(DT)
 
 
 format_data <- function(raw_dat){
