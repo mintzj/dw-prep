@@ -67,27 +67,27 @@ server <- function(input, output, session) {
     read_csv(input$file1$datapath)
   })
 
-  formatted_data <- reactive({
-    req(raw_data())
-    format_data(raw_data())
-  })
+  # formatted_data <- reactive({
+  #   req(raw_data())
+  #   format_data(raw_data())
+  # })
 
-  output$file1_contents <- renderPrint({
-    str(raw_data())
-  })
+  # output$file1_contents <- renderPrint({
+  #   str(raw_data())
+  # })
 
-  output$data_table <- renderDT({
-    formatted_data()
-  })
+  # output$data_table <- renderDT({
+  #   formatted_data()
+  # })
 
-  output$downloadData <- downloadHandler(
-    filename = function() {
-      paste("formatted_data-", Sys.Date(), ".csv", sep="")
-    },
-    content = function(file) {
-      write_csv(formatted_data(), file)
-    }
-  )
+  # output$downloadData <- downloadHandler(
+  #   filename = function() {
+  #     paste("formatted_data-", Sys.Date(), ".csv", sep="")
+  #   },
+  #   content = function(file) {
+  #     write_csv(formatted_data(), file)
+  #   }
+  # )
 }
 
 shinyApp(ui, server)
