@@ -1,4 +1,5 @@
 library(shiny)
+library(dplyr)
 options(shiny.trace = TRUE)
 
 format_data <- function(raw_dat){
