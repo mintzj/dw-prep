@@ -4,7 +4,7 @@ library(shiny)
 # library(reshape2)
 # library(stringr)
 # library(dplyr)
-# library(readr)
+library(readr)
 library(DT)
 
 
