@@ -1,63 +1,61 @@
 
 library(shiny)
 library(bslib)
-library(reshape2)
-library(stringr)
+# library(reshape2)
+# library(stringr)
 library(dplyr)
 # library(readr)
-library(ggplot2)
 library(DT)
 
 # ---- Global Setup ----
-treats <- c('#15983DFF', '#FEC10BFF', '#149BEDFF')
-species <- c('#EE0011FF', '#0C5BB0FF')
+format_data <- function(raw_dat){
+  trts <- c("t1", "t2", "t3")
+  spp <- c("sp1", "sp2")
+  trials <- c("1", "2")
 
-format_init_final <- function(duck_in){
-  duckdata <- duck_in %>%
-    mutate(
-      TotalArea_initial = Lemna_initial + Salvinia_initial,
-      TotalArea_final = Lemna_final + Salvinia_final,
-      RatioInit = Lemna_initial / Salvinia_initial,
-      RatioFin = Lemna_final / Salvinia_final,
-      Percent_IL = Lemna_initial / TotalArea_initial,
-      Percent_FL = Lemna_final / TotalArea_final,
-      PCG_Lemna = (Lemna_final - Lemna_initial) / Lemna_initial,
-      PCG_Salvinia = (Salvinia_final - Salvinia_initial) / Salvinia_initial,
-      PCG_Difference = PCG_Lemna - PCG_Salvinia
-    )
+  colset <- expand.grid(val = c("scale", spp), trt = trts, stage = trials)
+  cols <- apply(colset, MARGIN = 1, FUN = paste, collapse = ".")
+  names(raw_dat) <- c("first", "last", "section", cols)
 
-  duckdata$Treatment <- factor(
-    x = duckdata$Treatment,
-    levels = rev(unique(duckdata$Treatment)),
-    labels = c("Sp1:low", "50:50", "Sp1:high")
-  )
+  dat_density <- raw_dat |>
+    mutate(name = paste(last, first, sep = ", ")) |>
+    select(!contains("scale"), -first, -last)
 
-  duckdata$LabSection <- factor(
-    x = duckdata$LabSection,
-    levels = c("Monday", "Tuesday", "Wednesday", "Thursday")
-  )
+  t1 <-  dat_density |>
+    mutate(trt = "Lemna_common:Salvinia_rare") |>
+    select(name, section, trt, contains("t1")) 
+  t2 <-  dat_density |>
+    mutate(trt = "Lemna50:Salvinia50") |>
+    select(name, section, trt, contains("t2")) 
+  t3 <-  dat_density |>
+    mutate(trt = "Lemna_rare:Salvinia_common") |>
+    select(name, section, trt, contains("t3")) 
 
-  return(duckdata)
+  new_cols <- c("Name", "LabSection", "Treatment", 
+                "Lemna_initial", "Salvinia_initial", 
+                "Lemna_final", "Salvinia_final")
+
+  names(t3) <- names(t2) <- names(t1) <- new_cols
+  dat <- rbind(t1, t2, t3) |>
+    select(1:3, 6, 4, 7, 5) |>
+    arrange(Name)
+
+  return(dat)
 }
 
 # ---- UI ----
 ui <- fluidPage(
-  titlePanel("TSIIM: Duckweed Analysis - Yield & Area"),
+  theme = bslib::bs_theme(bootswatch = "flatly"),
+  titlePanel("Measuring Interaction Strength: Data Preparation"),
   sidebarLayout(
     sidebarPanel(
-      fileInput("file1", "Choose CSV File", accept = ".csv")
+      fileInput("file1", "Choose CSV File", accept = ".csv"),
+      helpText("Once your data is loaded, a formatted table will appear on the right.")
     ),
     mainPanel(
+      DTOutput("data_table"),
       verbatimTextOutput("file1_contents"),
-      h3("Figure 1"),
-      plotOutput("fig1"),
-      h3("Table: Summary Stats"),
-      DTOutput("table1"),
-      h3("Figure 2"),
-      verbatimTextOutput("tab2"),
-      plotOutput("fig2"),
-      h3("Figure 3"),
-      p("Placeholder for future content")
+      downloadButton("downloadData", "Download Formatted Data")
     )
   )
 )
@@ -69,38 +67,27 @@ server <- function(input, output, session) {
     read.csv(input$file1$datapath)
   })
 
-  duck_data <- reactive({
+  formatted_data <- reactive({
     req(raw_data())
-    format_init_final(raw_data())
+    format_data(raw_data())
   })
 
   output$file1_contents <- renderPrint({
     str(raw_data())
   })
 
-  output$fig1 <- renderPlot({
-    ggplot(duck_data(), aes(x = Treatment, y = TotalArea_final, fill = Treatment)) +
-      geom_boxplot() +
-      scale_fill_manual(values = treats) +
-      labs(title = "Final Yield by Treatment", y = "Total Area", x = "") +
-      theme_minimal()
+  output$data_table <- renderDT({
+    formatted_data()
   })
 
-  output$table1 <- renderDT({
-    datatable(duck_data())
-  })
-
-  output$tab2 <- renderPrint({
-    summary(duck_data()[, c("PCG_Lemna", "PCG_Salvinia", "PCG_Difference")])
-  })
-
-  output$fig2 <- renderPlot({
-    ggplot(duck_data(), aes(x = Treatment, y = PCG_Difference, fill = Treatment)) +
-      geom_boxplot() +
-      scale_fill_manual(values = treats) +
-      labs(title = "Per Capita Growth Difference", y = "PCG Difference", x = "") +
-      theme_minimal()
-  })
+  output$downloadData <- downloadHandler(
+    filename = function() {
+      paste("formatted_data-", Sys.Date(), ".csv", sep="")
+    },
+    content = function(file) {
+      write.csv(x = formatted_data(), file = file)
+    }
+  )
 }
 
 shinyApp(ui, server)
