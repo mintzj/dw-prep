@@ -1,0 +1,267 @@
+---
+title: "Measuring Interaction Strength"
+subtitle: "Data preparation"
+author: "(Authors list)"
+date: "`r Sys.Date()`"
+server: shiny
+toc-location: left
+toc-title: "Outline"
+---
+
+
+```{r}
+#| context: setup
+#| label: Global data loading
+#| echo: false
+#| warning: false
+
+library(bslib)
+library(reshape2)
+library(stringr)
+library(dplyr)
+library(readr)
+
+
+# R activities that need to happen 
+#  before the server loads (before render time)
+
+format_data <- function(raw_dat){
+  
+  # Treatments:
+  # t1 = Lemna common, salvinia rare
+  # t2 = Equal
+  # t3 = Lemna rare, salvinia common
+  
+  trts <- c("t1", "t2", "t3")
+  spp <- c("sp1", "sp2")
+  trials <- c("1", "2")
+  
+  colset <- expand.grid(val = c("scale", spp), 
+                        trt = trts, stage = trials)
+  
+  cols <- apply(colset, MARGIN = 1, FUN = paste, collapse = ".")
+  
+  names(raw_dat) <- c("first", "last", "section", cols)
+  
+  dat_density <- raw_dat |> 
+    mutate(name = paste(last, first, sep = ", ")) |> 
+    select(!contains("scale"), -first, -last)
+  
+  t1 <-  dat_density |> 
+    mutate(trt = "Lemna_common:Salvinia_rare") |> 
+    select(name, section, trt, contains("t1")) 
+  t2 <-  dat_density |> 
+    mutate(trt = "Lemna50:Salvinia50") |> 
+    select(name, section, trt, contains("t2")) 
+  t3 <-  dat_density |> 
+    mutate(trt = "Lemna_rare:Salvinia_common") |> 
+    select(name, section, trt, contains("t3")) 
+  
+  new_cols <- 
+    c("Name", "LabSection", "Treatment", 
+      "Lemna_initial", "Salvinia_initial", 
+      "Lemna_final", "Salvinia_final")
+  
+  names(t3) <- names(t2) <- names(t1) <- new_cols
+  
+  dat <- rbind(t1, t2, t3) |> 
+    select(1:3, 6, 4, 7, 5) |> arrange(Name)
+  
+  # Looks OK
+  return(dat)
+}
+
+
+```
+
+```{r setup, include=FALSE}
+## Global options
+knitr::opts_chunk$set(eval = T,
+                      echo = T,
+                      warning = FALSE,
+                      message = FALSE,
+                      fig.path = "figs/duckweed")
+
+options(width = 115)
+```
+
+
+This page is used to prepare data for analysis.  Please use the data entry provided template to submit data.  Once student data are entered into the template, browse to select your file.   If the data import process worked correctly, table will be displayed below containing the columns Name, LabSection, Treatment, Lemna_final, Lemna_initial, Salvinia_final and Salvinia_initial. Enter any additional metadata on your experiment for the research team to help us make the most of your submitted data.  Press the button at the bottom to submit the data to us.  Click "Download" to save the formatted data to your computer for the analysis.
+
+(Additional advice about data loading can be added as we work out issues.)
+
+### Data loading: 
+
+
+```{r}
+#| label: Select Dataset
+#| echo: false
+
+  fileInput("file1", "Choose CSV File", accept = ".csv")
+  verbatimTextOutput("file1_contents")
+  # tableOutput("contents")
+```
+
+
+
+
+```{r}
+#| label: Table for student data
+#| echo: false
+
+# DT table looks better than the basic table.
+DT::DTOutput(outputId = "rawtable")
+
+```
+
+
+### Metadata:
+
+```{r}
+#| label: Metadata entry
+#| echo: false
+#| layout-align: center
+
+ bslib::card(
+   # tableOutput("rawtable")  
+      textInput(inputId = "sp1", label = "Species 1", value = "Lemna aequinoctialis"),
+   textInput(inputId = "sp2", label = "Species 2", value = "Salvinia minima"),
+   sliderInput(inputId = "pH", "pH of water", 
+               min = 1, max = 13, value = 7, step = 0.1), 
+     sliderInput( inputId = "light", 
+                 "Light availability", 
+                 min = 0, max = 100, 
+                 value = c(35, 65) 
+                 ),
+   textInput(inputId = "school", label = "School Name"),
+   textInput(inputId = "teacher", label = "Teacher Name"),
+   textAreaInput(inputId = "notes", 
+                 label =  "Notes on experiment", 
+                 value = "Did the experiment go according to plans?"
+  ), 
+ )
+```
+
+### Submit:
+
+```{r}
+#| label: Download Data
+#| echo: false
+
+  bslib::card(
+    div(style = "text-align: center;",
+        actionButton("update", "Submit Data"),
+        textOutput("time")
+    )
+  )
+
+```
+
+```{r Hypothetical DL button}
+#| echo: false
+bslib::card(
+  div(style = "text-align: center;",
+  
+    card_header("Download Formatted Dataset"),
+    downloadButton(outputId = "dl", label = "Download")
+  )
+  
+)
+```
+
+  --------------------------------------------------------------------------------
+
+
+
+
+```{r}
+#| label: Server Setup
+#| echo: false
+#| context: server
+
+# R activities that need to happen reactively,
+#  once the server is running.
+
+  output$rawtable <- DT::renderDataTable(
+    expr = {
+      file <- input$file1
+      req(file)
+      
+      ext <- tools::file_ext(file$datapath)
+      validate(need(ext == "csv", "Please upload a csv file"))
+      
+      raw_dat <- read.csv(file$datapath)
+      
+      dat_out <- format_data(raw_dat = raw_dat)
+      dat_out
+      
+    }
+      
+      )
+  
+  # output$rawtable <- renderTable(expr = {
+  #   
+  # 
+  #     file <- input$file1
+  #     req(file)
+  #     
+  #     ext <- tools::file_ext(file$datapath)
+  #     validate(need(ext == "csv", "Please upload a csv file"))
+  #     
+  #     raw_dat <- read.csv(file$datapath)
+  #     
+  #     dat_out <- format_data(raw_dat = raw_dat)
+  #     
+  # }, striped = T, 
+  # )
+
+  output$file1_contents <-
+    renderPrint({print(input$file1)})
+
+# Show output when loaded.
+  # output$contents <- 
+  #   renderTable({
+  #     file <- input$file1
+  #     req(file)
+  #     
+  #     ext <- tools::file_ext(file$datapath)
+  #     validate(need(ext == "csv", "Please upload a csv file"))
+  #     
+  #     raw_dat <- read.csv(file$datapath)
+  #     
+  #     dat_out <- format_data(raw_dat = raw_dat)
+  # })
+
+  
+
+
+  output$time <- renderText({ 
+    format(x = Sys.time(), format = "Submitted: %a %b %d %X %Y")
+  }) |> bindEvent(input$update) 
+  
+  output$dl <- downloadHandler(
+    filename = "formatted_data.csv", 
+    content = function(file){
+      
+      in_file <- input$file1
+      req(in_file)
+
+      ext <- tools::file_ext(in_file$datapath)
+      validate(need(ext == "csv", "Please upload a csv file"))
+
+      raw_dat <- read.csv(in_file$datapath)
+
+      dat_out <- format_data(raw_dat = raw_dat)
+
+      write.csv(x = dat_out, file = file, row.names = F)
+
+    }
+  )
+
+
+```
+
+
+
+
+
